@@ -57,7 +57,7 @@
     line-height: 1.6;
   }
   .container {
-    max-width: 960px;
+    max-width: 1000px;
     margin: 0 auto;
     padding: 24px 20px 60px;
   }
@@ -77,38 +77,66 @@
     gap: 12px;
     margin-bottom: 16px;
   }
-  @media (max-width: 600px) {
+  @media (max-width: 700px) {
     .drops { grid-template-columns: 1fr; }
   }
   .drop {
     border: 1.5px dashed var(--border-strong);
     border-radius: var(--radius-lg);
     padding: 18px 16px;
-    text-align: center;
     cursor: pointer;
     transition: background 0.15s, border-color 0.15s;
-    min-height: 100px;
+    min-height: 120px;
     display: flex;
     flex-direction: column;
-    justify-content: center;
-    gap: 6px;
+    gap: 8px;
     background: var(--surface);
   }
   .drop:hover, .drop.over {
     background: var(--surface-2);
     border-color: var(--info);
   }
-  .drop .lbl { font-size: 14px; font-weight: 500; }
-  .drop .hint { font-size: 12px; color: var(--text-hint); }
-  .drop .fname { font-size: 12px; color: var(--info); word-break: break-all; }
+  .drop .lbl { font-size: 14px; font-weight: 500; text-align: center; }
+  .drop .hint { font-size: 12px; color: var(--text-hint); text-align: center; }
   .drop input { display: none; }
+  .file-list { display: flex; flex-direction: column; gap: 4px; margin-top: 4px; }
+  .file-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    font-size: 12px;
+    background: var(--surface-2);
+    padding: 4px 8px;
+    border-radius: 4px;
+  }
+  .file-item .name {
+    color: var(--info);
+    word-break: break-all;
+    flex: 1;
+  }
+  .file-item .meta {
+    color: var(--text-hint);
+    white-space: nowrap;
+    font-variant-numeric: tabular-nums;
+  }
+  .file-item .remove {
+    cursor: pointer;
+    color: var(--text-hint);
+    border: none;
+    background: none;
+    padding: 0 4px;
+    font-size: 14px;
+    line-height: 1;
+  }
+  .file-item .remove:hover { color: var(--danger); }
   .summary {
     display: grid;
-    grid-template-columns: repeat(4, 1fr);
+    grid-template-columns: repeat(5, 1fr);
     gap: 10px;
     margin-bottom: 16px;
   }
-  @media (max-width: 600px) {
+  @media (max-width: 700px) {
     .summary { grid-template-columns: repeat(2, 1fr); }
   }
   .stat {
@@ -122,10 +150,12 @@
   .stat.match .num { color: var(--success); }
   .stat.diff .num { color: var(--danger); }
   .stat.miss .num { color: var(--warning); }
+  .stat.dup .num { color: var(--danger); }
   @media (prefers-color-scheme: dark) {
     .stat.match .num { color: #c0dd97; }
     .stat.diff .num { color: #f09595; }
     .stat.miss .num { color: #fac775; }
+    .stat.dup .num { color: #f09595; }
   }
   .toolbar {
     display: flex;
@@ -187,11 +217,21 @@
     white-space: nowrap;
   }
   .status.ok { background: var(--success-bg); color: var(--success); }
-  .status.ng { background: var(--danger-bg); color: var(--danger); }
+  .status.ng, .status.dup-a, .status.dup-b { background: var(--danger-bg); color: var(--danger); }
   .status.only1, .status.only2 { background: var(--warning-bg); color: var(--warning); }
   .price-diff { color: var(--danger); font-weight: 500; }
   @media (prefers-color-scheme: dark) {
     .price-diff { color: #f09595; }
+  }
+  .price-multi {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+  .price-multi-item {
+    font-size: 11px;
+    color: var(--text-muted);
+    font-variant-numeric: tabular-nums;
   }
   .empty {
     text-align: center;
@@ -227,29 +267,29 @@
     margin-bottom: 8px;
   }
   details summary:hover { color: var(--text); }
-  .col-sku { width: 22%; }
-  .col-name { width: 38%; }
-  .col-p { width: 13%; }
-  .col-st { width: 14%; }
+  .col-sku { width: 18%; }
+  .col-name { width: 32%; }
+  .col-p { width: 16%; }
+  .col-st { width: 18%; }
 </style>
 </head>
 <body>
 <div class="container">
   <h1>価格差分チェッカー</h1>
-  <p class="subtitle">価格表CSV と 商品マスターCSV をSKUコードで突合します。すべてブラウザ内で処理され、ファイルは外部に送信されません。</p>
+  <p class="subtitle">価格表CSV と 商品マスターCSV をSKUコードで突合します。複数ファイルOK、ファイル間の価格不一致も検出します。すべてブラウザ内で処理されます。</p>
 
   <div class="drops">
     <label class="drop" id="drop-a" for="file-a">
-      <span class="lbl">📄 価格表CSV</span>
+      <span class="lbl">📄 価格表CSV（複数可）</span>
       <span class="hint">SKU名 / SKUコード / 販売価格（税込）</span>
-      <span class="fname" id="fname-a"></span>
-      <input type="file" id="file-a" accept=".csv,.txt">
+      <input type="file" id="file-a" accept=".csv,.txt" multiple>
+      <div class="file-list" id="filelist-a"></div>
     </label>
     <label class="drop" id="drop-b" for="file-b">
-      <span class="lbl">📄 商品マスターCSV</span>
+      <span class="lbl">📄 商品マスターCSV（複数可）</span>
       <span class="hint">SKUコード / SKU表示名 / 売価</span>
-      <span class="fname" id="fname-b"></span>
-      <input type="file" id="file-b" accept=".csv,.txt">
+      <input type="file" id="file-b" accept=".csv,.txt" multiple>
+      <div class="file-list" id="filelist-b"></div>
     </label>
   </div>
 
@@ -260,6 +300,7 @@
     <div class="stat match"><div class="num" id="stat-match">—</div><div class="lab">価格一致</div></div>
     <div class="stat diff"><div class="num" id="stat-diff">—</div><div class="lab">価格相違</div></div>
     <div class="stat miss"><div class="num" id="stat-miss">—</div><div class="lab">片側のみ</div></div>
+    <div class="stat dup"><div class="num" id="stat-dup">—</div><div class="lab">ファイル内不整合</div></div>
   </div>
 
   <div class="toolbar" id="toolbar" style="display:none;">
@@ -269,15 +310,16 @@
   </div>
 
   <div id="result-area">
-    <div class="empty">2つのCSVをドロップまたは選択してください</div>
+    <div class="empty">価格表CSV と 商品マスターCSV をドロップまたは選択してください</div>
   </div>
 
   <details class="note" style="margin-top: 32px;">
     <summary>使い方・仕様について</summary>
     <div style="margin-top: 8px;">
+      <strong>複数ファイル対応</strong>：価格表・商品マスターそれぞれに複数のCSVを投入できます。同じSKUが複数ファイルに出てくる場合、価格が同一ならOK、価格が違うと「ファイル内不整合」として警告します。<br>
       <strong>文字コード</strong>：UTF-8 / UTF-8 BOM / Shift_JIS を自動判定します。<br>
       <strong>列の認識</strong>：SKUコードをキーに、価格列は「販売価格」「売価」「価格」を含む列名を自動検出します。商品名は「SKU表示名」「SKU名」「商品名」を優先します。<br>
-      <strong>並び順</strong>：価格相違 → 片側のみ → 価格一致 の順で表示します。<br>
+      <strong>並び順</strong>：ファイル内不整合 → 価格相違 → 片側のみ → 価格一致 の順で表示します。<br>
       <strong>セキュリティ</strong>：このページはすべてブラウザ内で完結します。ファイルはサーバーやネットワークには一切送信されず、ページを閉じれば消えます。
     </div>
   </details>
@@ -285,21 +327,23 @@
 
 <script>
 (function(){
-  const state = { a: null, b: null };
+  // 各サイドは「ファイルごとの records 配列」を保持
+  // state[key] = [{ fileName, records, cols }, ...]
+  const state = { a: [], b: [] };
 
   function setupDrop(zoneId, inputId, key) {
     const zone = document.getElementById(zoneId);
     const input = document.getElementById(inputId);
-    const fnameEl = document.getElementById('fname-' + zoneId.split('-')[1]);
     ['dragenter','dragover'].forEach(e => zone.addEventListener(e, ev => { ev.preventDefault(); zone.classList.add('over'); }));
     ['dragleave','drop'].forEach(e => zone.addEventListener(e, ev => { ev.preventDefault(); zone.classList.remove('over'); }));
     zone.addEventListener('drop', ev => {
-      const f = ev.dataTransfer.files[0];
-      if (f) handleFile(f, key, fnameEl);
+      const files = Array.from(ev.dataTransfer.files);
+      handleFiles(files, key);
     });
     input.addEventListener('change', ev => {
-      const f = ev.target.files[0];
-      if (f) handleFile(f, key, fnameEl);
+      const files = Array.from(ev.target.files);
+      handleFiles(files, key);
+      ev.target.value = ''; // 同じファイルを再選択できるようにクリア
     });
   }
 
@@ -378,60 +422,121 @@
     return String(s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
   }
 
-  async function handleFile(file, key, fnameEl) {
+  async function handleFiles(files, key) {
     showErr('');
-    try {
-      const text = await readSmart(file);
-      const rows = parseCSV(text);
-      const records = toRecords(rows);
-      const cols = detectColumns(records);
-      if (!cols || !cols.skuKey || !cols.priceKey) {
-        showErr(file.name + ': SKUコード列または価格列が見つかりません');
-        return;
+    const errors = [];
+    for (const file of files) {
+      try {
+        const text = await readSmart(file);
+        const rows = parseCSV(text);
+        const records = toRecords(rows);
+        const cols = detectColumns(records);
+        if (!cols || !cols.skuKey || !cols.priceKey) {
+          errors.push(file.name + ': SKUコード列または価格列が見つかりません');
+          continue;
+        }
+        state[key].push({ fileName: file.name, records, cols });
+      } catch (e) {
+        errors.push(file.name + ': ' + e.message);
       }
-      state[key] = { records, cols, fileName: file.name };
-      fnameEl.textContent = file.name;
-      render();
-    } catch (e) {
-      showErr('読込エラー: ' + e.message);
     }
+    if (errors.length > 0) showErr(errors.join(' / '));
+    renderFileList(key);
+    render();
+  }
+
+  function renderFileList(key) {
+    const listEl = document.getElementById('filelist-' + key);
+    if (state[key].length === 0) { listEl.innerHTML = ''; return; }
+    listEl.innerHTML = state[key].map((f, idx) => {
+      return '<div class="file-item">' +
+        '<span class="name">' + escapeHtml(f.fileName) + '</span>' +
+        '<span class="meta">' + f.records.length + '行</span>' +
+        '<button class="remove" data-key="' + key + '" data-idx="' + idx + '" title="削除">×</button>' +
+        '</div>';
+    }).join('');
+    listEl.querySelectorAll('.remove').forEach(btn => {
+      btn.addEventListener('click', (ev) => {
+        ev.preventDefault();
+        ev.stopPropagation();
+        const k = btn.dataset.key;
+        const i = parseInt(btn.dataset.idx, 10);
+        state[k].splice(i, 1);
+        renderFileList(k);
+        render();
+      });
+    });
+  }
+
+  // 同じ側の複数ファイルを集約。SKUごとに {prices: Map<price, [fileName,...]>, name}
+  function aggregate(files) {
+    const map = new Map();
+    for (const f of files) {
+      for (const r of f.records) {
+        const sku = r[f.cols.skuKey];
+        if (!sku) continue;
+        const price = toInt(r[f.cols.priceKey]);
+        const name = r[f.cols.nameKey] || '';
+        if (!map.has(sku)) map.set(sku, { name: name, prices: new Map() });
+        const entry = map.get(sku);
+        if (name && !entry.name) entry.name = name;
+        if (!entry.prices.has(price)) entry.prices.set(price, []);
+        entry.prices.get(price).push(f.fileName);
+      }
+    }
+    return map;
   }
 
   function render() {
-    if (!state.a || !state.b) {
+    if (state.a.length === 0 || state.b.length === 0) {
       document.getElementById('summary').style.display = 'none';
       document.getElementById('toolbar').style.display = 'none';
-      document.getElementById('result-area').innerHTML = '<div class="empty">2つのCSVをドロップまたは選択してください</div>';
+      document.getElementById('result-area').innerHTML = '<div class="empty">価格表CSV と 商品マスターCSV をドロップまたは選択してください</div>';
       return;
     }
 
-    const aMap = new Map();
-    const bMap = new Map();
-    state.a.records.forEach(r => {
-      const sku = r[state.a.cols.skuKey];
-      if (sku) aMap.set(sku, { name: r[state.a.cols.nameKey] || '', price: toInt(r[state.a.cols.priceKey]) });
-    });
-    state.b.records.forEach(r => {
-      const sku = r[state.b.cols.skuKey];
-      if (sku) bMap.set(sku, { name: r[state.b.cols.nameKey] || '', price: toInt(r[state.b.cols.priceKey]) });
-    });
+    const aMap = aggregate(state.a);
+    const bMap = aggregate(state.b);
 
     const allSkus = new Set([...aMap.keys(), ...bMap.keys()]);
     const rows = [];
-    let match = 0, diff = 0, miss = 0;
+    let match = 0, diff = 0, miss = 0, dup = 0;
+
     for (const sku of allSkus) {
       const a = aMap.get(sku);
       const b = bMap.get(sku);
+      const aDup = a && a.prices.size > 1;
+      const bDup = b && b.prices.size > 1;
+
       let status, statusLabel;
-      if (a && b) {
-        if (a.price === b.price) { status = 'ok'; statusLabel = '一致'; match++; }
+
+      if (aDup && bDup) {
+        status = 'dup-a';
+        statusLabel = '両側で不整合';
+        dup++;
+      } else if (aDup) {
+        status = 'dup-a';
+        statusLabel = '価格表内で不整合';
+        dup++;
+      } else if (bDup) {
+        status = 'dup-b';
+        statusLabel = '商品マスター内で不整合';
+        dup++;
+      } else if (a && b) {
+        const ap = [...a.prices.keys()][0];
+        const bp = [...b.prices.keys()][0];
+        if (ap === bp) { status = 'ok'; statusLabel = '一致'; match++; }
         else { status = 'ng'; statusLabel = '相違'; diff++; }
-      } else if (a && !b) { status = 'only1'; statusLabel = '価格表のみ'; miss++; }
-      else { status = 'only2'; statusLabel = '商品マスターのみ'; miss++; }
+      } else if (a && !b) {
+        status = 'only1'; statusLabel = '価格表のみ'; miss++;
+      } else {
+        status = 'only2'; statusLabel = '商品マスターのみ'; miss++;
+      }
       rows.push({ sku, a, b, status, statusLabel });
     }
 
-    const order = { ng: 0, only1: 1, only2: 1, ok: 2 };
+    // 並び順：ファイル内不整合 → 相違 → 片側のみ → 一致
+    const order = { 'dup-a': 0, 'dup-b': 0, ng: 1, only1: 2, only2: 2, ok: 3 };
     rows.sort((x, y) => (order[x.status] - order[y.status]) || x.sku.localeCompare(y.sku));
 
     document.getElementById('summary').style.display = '';
@@ -440,6 +545,7 @@
     document.getElementById('stat-match').textContent = match;
     document.getElementById('stat-diff').textContent = diff;
     document.getElementById('stat-miss').textContent = miss;
+    document.getElementById('stat-dup').textContent = dup;
 
     const onlyIssues = document.getElementById('only-issues').checked;
     const visible = onlyIssues ? rows.filter(r => r.status !== 'ok') : rows;
@@ -452,14 +558,13 @@
       html += '<thead><tr><th>SKUコード</th><th>商品名</th><th class="num-cell">価格表</th><th class="num-cell">商品マスター</th><th>状態</th></tr></thead><tbody>';
       for (const r of visible) {
         const name = (r.a && r.a.name) || (r.b && r.b.name) || '';
-        const ap = r.a ? (r.a.price === null ? '—' : r.a.price.toLocaleString()) : '—';
-        const bp = r.b ? (r.b.price === null ? '—' : r.b.price.toLocaleString()) : '—';
-        const cls = r.status === 'ng' ? 'price-diff' : '';
+        const apCell = formatPriceCell(r.a, r.status === 'ng' || r.status === 'dup-a');
+        const bpCell = formatPriceCell(r.b, r.status === 'ng' || r.status === 'dup-b');
         html += '<tr>';
         html += '<td>' + escapeHtml(r.sku) + '</td>';
         html += '<td>' + escapeHtml(name) + '</td>';
-        html += '<td class="num-cell ' + cls + '">' + ap + '</td>';
-        html += '<td class="num-cell ' + cls + '">' + bp + '</td>';
+        html += '<td class="num-cell">' + apCell + '</td>';
+        html += '<td class="num-cell">' + bpCell + '</td>';
         html += '<td><span class="status ' + r.status + '">' + r.statusLabel + '</span></td>';
         html += '</tr>';
       }
@@ -467,6 +572,24 @@
     }
     document.getElementById('result-area').innerHTML = html;
     window.__rows = rows;
+  }
+
+  function formatPriceCell(entry, highlight) {
+    if (!entry) return '—';
+    const prices = [...entry.prices.entries()];
+    if (prices.length === 0) return '—';
+    if (prices.length === 1) {
+      const [p] = prices[0];
+      const txt = p === null ? '—' : p.toLocaleString();
+      return highlight ? '<span class="price-diff">' + txt + '</span>' : txt;
+    }
+    // 複数価格 → ファイル名付きで列挙
+    const items = prices.map(([p, files]) => {
+      const txt = p === null ? '—' : p.toLocaleString();
+      const fileList = files.map(escapeHtml).join(', ');
+      return '<div class="price-multi-item"><span class="price-diff">' + txt + '</span> ← ' + fileList + '</div>';
+    });
+    return '<div class="price-multi">' + items.join('') + '</div>';
   }
 
   setupDrop('drop-a', 'file-a', 'a');
@@ -479,8 +602,8 @@
     const lines = ['SKUコード\t商品名\t価格表\t商品マスター\t状態'];
     for (const r of rows) {
       const name = (r.a && r.a.name) || (r.b && r.b.name) || '';
-      const ap = r.a && r.a.price !== null ? r.a.price : '';
-      const bp = r.b && r.b.price !== null ? r.b.price : '';
+      const ap = priceToText(r.a);
+      const bp = priceToText(r.b);
       lines.push([r.sku, name, ap, bp, r.statusLabel].join('\t'));
     }
     navigator.clipboard.writeText(lines.join('\n')).then(() => {
@@ -491,14 +614,22 @@
     });
   });
 
+  function priceToText(entry) {
+    if (!entry) return '';
+    const prices = [...entry.prices.entries()];
+    if (prices.length === 0) return '';
+    if (prices.length === 1) return prices[0][0] ?? '';
+    return prices.map(([p, files]) => (p ?? '') + '(' + files.join(',') + ')').join(' / ');
+  }
+
   document.getElementById('reset-btn').addEventListener('click', () => {
-    state.a = null;
-    state.b = null;
-    document.getElementById('fname-a').textContent = '';
-    document.getElementById('fname-b').textContent = '';
+    state.a = [];
+    state.b = [];
     document.getElementById('file-a').value = '';
     document.getElementById('file-b').value = '';
     document.getElementById('only-issues').checked = false;
+    renderFileList('a');
+    renderFileList('b');
     showErr('');
     render();
   });
