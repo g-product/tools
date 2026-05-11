@@ -1,0 +1,587 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="robots" content="noindex, nofollow">
+<title>tabファイルジェネレータ - 新潟 / 山形</title>
+<style>
+  :root {
+    --bg: #faf9f7;
+    --surface: #ffffff;
+    --surface-2: #f1efe8;
+    --text: #2c2c2a;
+    --text-muted: #5f5e5a;
+    --text-hint: #888780;
+    --border: rgba(0,0,0,0.12);
+    --border-strong: rgba(0,0,0,0.25);
+    --radius: 8px;
+    --radius-lg: 12px;
+
+    --niigata: #185fa5;
+    --niigata-bg: #e6f1fb;
+    --niigata-text: #042c53;
+    --yamagata: #3b6d11;
+    --yamagata-bg: #eaf3de;
+    --yamagata-text: #173404;
+    --danger: #501313;
+    --danger-bg: #fcebeb;
+    --warning: #412402;
+    --warning-bg: #faeeda;
+    --success: #173404;
+    --success-bg: #eaf3de;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #1a1a18;
+      --surface: #25241f;
+      --surface-2: #2f2e28;
+      --text: #ebebe5;
+      --text-muted: #b4b2a9;
+      --text-hint: #888780;
+      --border: rgba(255,255,255,0.15);
+      --border-strong: rgba(255,255,255,0.3);
+      --niigata: #85b7eb;
+      --niigata-bg: #0c447c;
+      --niigata-text: #b5d4f4;
+      --yamagata: #97c459;
+      --yamagata-bg: #27500a;
+      --yamagata-text: #c0dd97;
+      --danger: #f09595;
+      --danger-bg: #791f1f;
+      --warning: #fac775;
+      --warning-bg: #633806;
+      --success: #c0dd97;
+      --success-bg: #27500a;
+    }
+  }
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0;
+    padding: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Hiragino Sans", "Yu Gothic UI", sans-serif;
+    font-size: 14px;
+    line-height: 1.6;
+  }
+  .container {
+    max-width: 1000px;
+    margin: 0 auto;
+    padding: 24px 20px 60px;
+  }
+  h1 {
+    font-size: 20px;
+    font-weight: 500;
+    margin: 0 0 4px;
+  }
+  .subtitle {
+    color: var(--text-muted);
+    font-size: 13px;
+    margin: 0 0 24px;
+  }
+  .drops {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+    margin-bottom: 16px;
+  }
+  @media (max-width: 700px) {
+    .drops { grid-template-columns: 1fr; }
+  }
+  .drop {
+    border: 1.5px dashed var(--border-strong);
+    border-radius: var(--radius-lg);
+    padding: 18px 16px;
+    cursor: pointer;
+    transition: background 0.15s, border-color 0.15s;
+    min-height: 140px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    background: var(--surface);
+  }
+  .drop.niigata {
+    border-color: var(--niigata);
+    background: var(--niigata-bg);
+  }
+  .drop.niigata .lbl { color: var(--niigata-text); }
+  .drop.niigata.over { background: var(--niigata); }
+  .drop.niigata.over .lbl, .drop.niigata.over .hint { color: white; }
+  .drop.yamagata {
+    border-color: var(--yamagata);
+    background: var(--yamagata-bg);
+  }
+  .drop.yamagata .lbl { color: var(--yamagata-text); }
+  .drop.yamagata.over { background: var(--yamagata); }
+  .drop.yamagata.over .lbl, .drop.yamagata.over .hint { color: white; }
+  .drop .lbl { font-size: 15px; font-weight: 500; text-align: center; }
+  .drop .hint { font-size: 12px; color: var(--text-hint); text-align: center; }
+  .drop input { display: none; }
+  .file-list { display: flex; flex-direction: column; gap: 4px; margin-top: 4px; }
+  .file-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    font-size: 12px;
+    background: var(--surface);
+    padding: 4px 8px;
+    border-radius: 4px;
+  }
+  .file-item .name {
+    word-break: break-all;
+    flex: 1;
+  }
+  .file-item .meta {
+    color: var(--text-hint);
+    white-space: nowrap;
+    font-variant-numeric: tabular-nums;
+  }
+  .file-item .remove {
+    cursor: pointer;
+    color: var(--text-hint);
+    border: none;
+    background: none;
+    padding: 0 4px;
+    font-size: 14px;
+    line-height: 1;
+  }
+  .file-item .remove:hover { color: var(--danger); }
+  .preview-section {
+    background: var(--surface);
+    border: 0.5px solid var(--border);
+    border-radius: var(--radius);
+    margin-bottom: 14px;
+    overflow: hidden;
+  }
+  .preview-section.niigata { border-left: 4px solid var(--niigata); }
+  .preview-section.yamagata { border-left: 4px solid var(--yamagata); }
+  .preview-header {
+    padding: 10px 14px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background: var(--surface-2);
+    border-bottom: 0.5px solid var(--border);
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+  .preview-header .title { font-size: 13px; font-weight: 500; }
+  .preview-header .count { font-size: 12px; color: var(--text-muted); font-variant-numeric: tabular-nums; }
+  .preview-header .actions { display: flex; gap: 8px; margin-left: auto; }
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 12px;
+  }
+  th, td {
+    padding: 7px 10px;
+    border-bottom: 0.5px solid var(--border);
+    text-align: left;
+    vertical-align: top;
+    word-break: break-all;
+  }
+  tr:last-child td { border-bottom: none; }
+  th {
+    font-weight: 500;
+    font-size: 11px;
+    color: var(--text-muted);
+  }
+  .sku-cell { font-family: ui-monospace, "SF Mono", Consolas, monospace; }
+  .code-cell { font-family: ui-monospace, "SF Mono", Consolas, monospace; font-variant-numeric: tabular-nums; }
+  button {
+    background: var(--surface);
+    color: var(--text);
+    border: 0.5px solid var(--border-strong);
+    border-radius: var(--radius);
+    padding: 6px 12px;
+    font-size: 13px;
+    cursor: pointer;
+    font-family: inherit;
+  }
+  button:hover { background: var(--surface-2); }
+  button:active { transform: scale(0.98); }
+  button.primary.niigata {
+    background: var(--niigata);
+    color: white;
+    border-color: var(--niigata);
+  }
+  button.primary.niigata:hover { opacity: 0.85; background: var(--niigata); }
+  button.primary.yamagata {
+    background: var(--yamagata);
+    color: white;
+    border-color: var(--yamagata);
+  }
+  button.primary.yamagata:hover { opacity: 0.85; background: var(--yamagata); }
+  .empty {
+    text-align: center;
+    padding: 2.5rem 1rem;
+    color: var(--text-hint);
+    font-size: 13px;
+  }
+  .err {
+    background: var(--danger-bg);
+    color: var(--danger);
+    padding: 10px 14px;
+    border-radius: var(--radius);
+    font-size: 13px;
+    margin-bottom: 12px;
+  }
+  .warn {
+    background: var(--warning-bg);
+    color: var(--warning);
+    padding: 8px 12px;
+    border-radius: var(--radius);
+    font-size: 12px;
+    margin: 8px 14px;
+  }
+  .note {
+    margin-top: 32px;
+    padding: 12px 16px;
+    background: var(--surface-2);
+    border-radius: var(--radius);
+    font-size: 12px;
+    color: var(--text-muted);
+    line-height: 1.7;
+  }
+  .note strong { color: var(--text); font-weight: 500; }
+  details summary {
+    cursor: pointer;
+    font-size: 13px;
+    color: var(--text-muted);
+    margin-bottom: 8px;
+  }
+  details summary:hover { color: var(--text); }
+  .toolbar-global {
+    display: flex;
+    justify-content: flex-end;
+    margin-bottom: 12px;
+  }
+</style>
+</head>
+<body>
+<div class="container">
+  <h1>tabファイルジェネレータ</h1>
+  <p class="subtitle">商品マスターCSVをドロップすると、SKUコード・SKU表示名・派生コードのTAB区切りファイルを生成します。新潟（SKU先頭=1）と山形（SKU先頭=2）でドロップ先を分けてください。</p>
+
+  <div class="drops">
+    <label class="drop niigata" id="drop-n" for="file-n">
+      <span class="lbl">🟦 新潟（SKU先頭 = 1）</span>
+      <span class="hint">商品マスターCSV／出力: n_0000.tab</span>
+      <input type="file" id="file-n" accept=".csv,.txt" multiple>
+      <div class="file-list" id="filelist-n"></div>
+    </label>
+    <label class="drop yamagata" id="drop-y" for="file-y">
+      <span class="lbl">🟩 山形（SKU先頭 = 2）</span>
+      <span class="hint">商品マスターCSV／出力: y_0000.tab</span>
+      <input type="file" id="file-y" accept=".csv,.txt" multiple>
+      <div class="file-list" id="filelist-y"></div>
+    </label>
+  </div>
+
+  <div id="err-box"></div>
+
+  <div class="toolbar-global" id="toolbar" style="display:none;">
+    <button id="reset-btn">リセット</button>
+  </div>
+
+  <div id="result-area">
+    <div class="empty" style="background: var(--surface); border: 0.5px solid var(--border); border-radius: var(--radius);">
+      新潟 or 山形 のエリアに商品マスターCSVをドロップしてください
+    </div>
+  </div>
+
+  <details class="note" style="margin-top: 32px;">
+    <summary>使い方・仕様について</summary>
+    <div style="margin-top: 8px;">
+      <strong>入力</strong>：商品マスターCSV（usces書き出し形式）。複数ファイルを投入できます。<br>
+      <strong>分類</strong>：CSVに含まれるSKUコードの先頭1文字を見て、ドロップしたエリアと一致しない行は警告表示します（誤って逆のエリアに入れた場合の検出用）。<br>
+      <strong>派生コードの生成</strong>：SKUコード <code>1202-001-01</code> の場合、ハイフンを除いた先頭4桁 <code>1202</code> に、都道府県プレフィックス（新潟=1／山形=2）と末尾固定 <code>01</code> を組み合わせて <code>1120201</code> を生成します。<br>
+      <strong>出力</strong>：TAB区切り3列（SKUコード／SKU表示名／派生コード）、UTF-8、CRLF改行、末尾改行なし。ファイル名は <code>n_0000.tab</code> / <code>y_0000.tab</code>（DLしてから手動でリネーム）。<br>
+      <strong>セキュリティ</strong>：すべてブラウザ内で処理され、ファイルは外部に送信されません。
+    </div>
+  </details>
+</div>
+
+<script>
+(function(){
+  const state = { n: [], y: [] };
+
+  function setupDrop(zoneId, inputId, key) {
+    const zone = document.getElementById(zoneId);
+    const input = document.getElementById(inputId);
+    ['dragenter','dragover'].forEach(e => zone.addEventListener(e, ev => { ev.preventDefault(); zone.classList.add('over'); }));
+    ['dragleave','drop'].forEach(e => zone.addEventListener(e, ev => { ev.preventDefault(); zone.classList.remove('over'); }));
+    zone.addEventListener('drop', ev => {
+      const files = Array.from(ev.dataTransfer.files);
+      handleFiles(files, key);
+    });
+    input.addEventListener('change', ev => {
+      const files = Array.from(ev.target.files);
+      handleFiles(files, key);
+      ev.target.value = '';
+    });
+  }
+
+  async function readSmart(file) {
+    const buf = await file.arrayBuffer();
+    const bytes = new Uint8Array(buf);
+    if (bytes[0] === 0xEF && bytes[1] === 0xBB && bytes[2] === 0xBF) {
+      return new TextDecoder('utf-8').decode(bytes.slice(3));
+    }
+    try {
+      return new TextDecoder('utf-8', { fatal: true }).decode(bytes);
+    } catch (e) {
+      return new TextDecoder('shift_jis').decode(bytes);
+    }
+  }
+
+  function parseCSV(text) {
+    const rows = [];
+    let row = [], cur = '', inQ = false;
+    for (let i = 0; i < text.length; i++) {
+      const c = text[i];
+      if (inQ) {
+        if (c === '"') {
+          if (text[i+1] === '"') { cur += '"'; i++; }
+          else inQ = false;
+        } else cur += c;
+      } else {
+        if (c === '"') inQ = true;
+        else if (c === ',') { row.push(cur); cur = ''; }
+        else if (c === '\n') { row.push(cur); rows.push(row); row = []; cur = ''; }
+        else if (c === '\r') { /* skip */ }
+        else cur += c;
+      }
+    }
+    if (cur.length > 0 || row.length > 0) { row.push(cur); rows.push(row); }
+    return rows.filter(r => r.length > 1 || (r.length === 1 && r[0].trim() !== ''));
+  }
+
+  function toRecords(rows) {
+    if (rows.length < 2) return [];
+    const header = rows[0].map(h => h.trim());
+    return rows.slice(1).map(r => {
+      const obj = {};
+      header.forEach((h, i) => obj[h] = (r[i] ?? '').trim());
+      return obj;
+    });
+  }
+
+  function detectColumns(records) {
+    if (records.length === 0) return null;
+    const keys = Object.keys(records[0]);
+    const findInclude = (cands) => {
+      for (const c of cands) {
+        const k = keys.find(k => k.includes(c));
+        if (k) return k;
+      }
+      return null;
+    };
+    const skuKey = findInclude(['SKUコード', 'SKU']);
+    const nameKey = findInclude(['SKU表示名', 'SKU名', '商品名', '名称']);
+    return { skuKey, nameKey };
+  }
+
+  function showErr(msg) {
+    document.getElementById('err-box').innerHTML = msg ? '<div class="err">' + escapeHtml(msg) + '</div>' : '';
+  }
+
+  function escapeHtml(s) {
+    return String(s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+  }
+
+  async function handleFiles(files, key) {
+    showErr('');
+    const errors = [];
+    for (const file of files) {
+      try {
+        const text = await readSmart(file);
+        const rows = parseCSV(text);
+        const records = toRecords(rows);
+        const cols = detectColumns(records);
+        if (!cols || !cols.skuKey) {
+          errors.push(file.name + ': SKUコード列が見つかりません');
+          continue;
+        }
+        state[key].push({ fileName: file.name, records, cols });
+      } catch (e) {
+        errors.push(file.name + ': ' + e.message);
+      }
+    }
+    if (errors.length > 0) showErr(errors.join(' / '));
+    renderFileList(key);
+    render();
+  }
+
+  function renderFileList(key) {
+    const listEl = document.getElementById('filelist-' + key);
+    if (state[key].length === 0) { listEl.innerHTML = ''; return; }
+    listEl.innerHTML = state[key].map((f, idx) => {
+      return '<div class="file-item">' +
+        '<span class="name">' + escapeHtml(f.fileName) + '</span>' +
+        '<span class="meta">' + f.records.length + '行</span>' +
+        '<button class="remove" data-key="' + key + '" data-idx="' + idx + '" title="削除">×</button>' +
+        '</div>';
+    }).join('');
+    listEl.querySelectorAll('.remove').forEach(btn => {
+      btn.addEventListener('click', (ev) => {
+        ev.preventDefault();
+        ev.stopPropagation();
+        const k = btn.dataset.key;
+        const i = parseInt(btn.dataset.idx, 10);
+        state[k].splice(i, 1);
+        renderFileList(k);
+        render();
+      });
+    });
+  }
+
+  // SKUコードから派生コードを生成
+  // 1202-001-01 → ハイフン除去 → 12020101 → 先頭4桁=1202 → prefix(1) + 1202 + 01 = 1120201
+  function deriveCode(sku, prefix) {
+    const clean = sku.replace(/-/g, '');
+    const head4 = clean.substring(0, 4);
+    return prefix + head4 + '01';
+  }
+
+  // 各サイドの行を集計（SKU+派生コードでユニーク化、表示順は登場順）
+  function buildRows(files, expectedPrefix) {
+    const seen = new Set();
+    const rows = [];
+    const mismatches = []; // 想定と異なるプレフィックスのSKU
+    for (const f of files) {
+      for (const r of f.records) {
+        const sku = r[f.cols.skuKey];
+        if (!sku) continue;
+        const name = (f.cols.nameKey && r[f.cols.nameKey]) || '';
+        if (sku.charAt(0) !== expectedPrefix) {
+          mismatches.push({ sku, name, fileName: f.fileName });
+          continue;
+        }
+        const key = sku;
+        if (seen.has(key)) continue;
+        seen.add(key);
+        const code = deriveCode(sku, expectedPrefix);
+        rows.push({ sku, name, code });
+      }
+    }
+    return { rows, mismatches };
+  }
+
+  function render() {
+    const hasN = state.n.length > 0;
+    const hasY = state.y.length > 0;
+    if (!hasN && !hasY) {
+      document.getElementById('toolbar').style.display = 'none';
+      document.getElementById('result-area').innerHTML = '<div class="empty" style="background: var(--surface); border: 0.5px solid var(--border); border-radius: var(--radius);">新潟 or 山形 のエリアに商品マスターCSVをドロップしてください</div>';
+      return;
+    }
+
+    document.getElementById('toolbar').style.display = '';
+    let html = '';
+    if (hasN) html += renderSection('n', '新潟', '1', 'niigata', 'n_0000.tab');
+    if (hasY) html += renderSection('y', '山形', '2', 'yamagata', 'y_0000.tab');
+    document.getElementById('result-area').innerHTML = html;
+
+    // ダウンロードボタン
+    document.querySelectorAll('[data-action="download"]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const k = btn.dataset.key;
+        downloadTab(k);
+      });
+    });
+    document.querySelectorAll('[data-action="copy"]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const k = btn.dataset.key;
+        copyTab(k, btn);
+      });
+    });
+  }
+
+  function renderSection(key, regionLabel, prefix, themeClass, fileName) {
+    const { rows, mismatches } = buildRows(state[key], prefix);
+
+    let html = '<div class="preview-section ' + themeClass + '">';
+    html += '<div class="preview-header">';
+    html += '<span class="title">' + regionLabel + '（' + escapeHtml(fileName) + '）</span>';
+    html += '<span class="count">' + rows.length + '件</span>';
+    html += '<div class="actions">';
+    html += '<button data-action="copy" data-key="' + key + '">📋 TSVコピー</button>';
+    html += '<button class="primary ' + themeClass + '" data-action="download" data-key="' + key + '">⬇️ ' + escapeHtml(fileName) + ' をDL</button>';
+    html += '</div>';
+    html += '</div>';
+
+    if (mismatches.length > 0) {
+      const samples = mismatches.slice(0, 3).map(m => m.sku).join(', ');
+      const more = mismatches.length > 3 ? ` ほか${mismatches.length - 3}件` : '';
+      html += '<div class="warn">⚠️ ' + regionLabel + '側にSKU先頭が「' + prefix + '」でない行が ' + mismatches.length + ' 件あります（例: ' + escapeHtml(samples) + more + '）。これらは出力に含まれません。逆のエリアに入れていないか確認してください。</div>';
+    }
+
+    if (rows.length === 0) {
+      html += '<div class="empty">出力対象の行がありません</div>';
+    } else {
+      html += '<table><thead><tr><th>SKUコード</th><th>SKU表示名</th><th>派生コード</th></tr></thead><tbody>';
+      for (const r of rows) {
+        html += '<tr>';
+        html += '<td class="sku-cell">' + escapeHtml(r.sku) + '</td>';
+        html += '<td>' + escapeHtml(r.name) + '</td>';
+        html += '<td class="code-cell">' + escapeHtml(r.code) + '</td>';
+        html += '</tr>';
+      }
+      html += '</tbody></table>';
+    }
+    html += '</div>';
+    return html;
+  }
+
+  function buildTabContent(key) {
+    const prefix = key === 'n' ? '1' : '2';
+    const { rows } = buildRows(state[key], prefix);
+    // TAB区切り、CRLF、末尾改行なし
+    return rows.map(r => [r.sku, r.name, r.code].join('\t')).join('\r\n');
+  }
+
+  function downloadTab(key) {
+    const content = buildTabContent(key);
+    if (!content) return;
+    const fileName = key === 'n' ? 'n_0000.tab' : 'y_0000.tab';
+    const blob = new Blob([content], { type: 'text/plain;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = fileName;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  }
+
+  function copyTab(key, btn) {
+    const content = buildTabContent(key);
+    if (!content) return;
+    navigator.clipboard.writeText(content).then(() => {
+      const old = btn.textContent;
+      btn.textContent = '✓ コピーしました';
+      setTimeout(() => btn.textContent = old, 1500);
+    });
+  }
+
+  setupDrop('drop-n', 'file-n', 'n');
+  setupDrop('drop-y', 'file-y', 'y');
+
+  document.getElementById('reset-btn').addEventListener('click', () => {
+    state.n = [];
+    state.y = [];
+    document.getElementById('file-n').value = '';
+    document.getElementById('file-y').value = '';
+    renderFileList('n');
+    renderFileList('y');
+    showErr('');
+    render();
+  });
+})();
+</script>
+</body>
+</html>
