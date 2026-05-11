@@ -1,0 +1,508 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="robots" content="noindex, nofollow">
+<title>価格差分チェッカー - 価格表と商品マスターの突合</title>
+<style>
+  :root {
+    --bg: #faf9f7;
+    --surface: #ffffff;
+    --surface-2: #f1efe8;
+    --text: #2c2c2a;
+    --text-muted: #5f5e5a;
+    --text-hint: #888780;
+    --border: rgba(0,0,0,0.12);
+    --border-strong: rgba(0,0,0,0.25);
+    --info: #185fa5;
+    --info-bg: #e6f1fb;
+    --success: #173404;
+    --success-bg: #eaf3de;
+    --danger: #501313;
+    --danger-bg: #fcebeb;
+    --warning: #412402;
+    --warning-bg: #faeeda;
+    --radius: 8px;
+    --radius-lg: 12px;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #1a1a18;
+      --surface: #25241f;
+      --surface-2: #2f2e28;
+      --text: #ebebe5;
+      --text-muted: #b4b2a9;
+      --text-hint: #888780;
+      --border: rgba(255,255,255,0.15);
+      --border-strong: rgba(255,255,255,0.3);
+      --info: #85b7eb;
+      --info-bg: #0c447c;
+      --success: #c0dd97;
+      --success-bg: #27500a;
+      --danger: #f09595;
+      --danger-bg: #791f1f;
+      --warning: #fac775;
+      --warning-bg: #633806;
+    }
+  }
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0;
+    padding: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Hiragino Sans", "Yu Gothic UI", sans-serif;
+    font-size: 14px;
+    line-height: 1.6;
+  }
+  .container {
+    max-width: 960px;
+    margin: 0 auto;
+    padding: 24px 20px 60px;
+  }
+  h1 {
+    font-size: 20px;
+    font-weight: 500;
+    margin: 0 0 4px;
+  }
+  .subtitle {
+    color: var(--text-muted);
+    font-size: 13px;
+    margin: 0 0 24px;
+  }
+  .drops {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+    margin-bottom: 16px;
+  }
+  @media (max-width: 600px) {
+    .drops { grid-template-columns: 1fr; }
+  }
+  .drop {
+    border: 1.5px dashed var(--border-strong);
+    border-radius: var(--radius-lg);
+    padding: 18px 16px;
+    text-align: center;
+    cursor: pointer;
+    transition: background 0.15s, border-color 0.15s;
+    min-height: 100px;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    gap: 6px;
+    background: var(--surface);
+  }
+  .drop:hover, .drop.over {
+    background: var(--surface-2);
+    border-color: var(--info);
+  }
+  .drop .lbl { font-size: 14px; font-weight: 500; }
+  .drop .hint { font-size: 12px; color: var(--text-hint); }
+  .drop .fname { font-size: 12px; color: var(--info); word-break: break-all; }
+  .drop input { display: none; }
+  .summary {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 10px;
+    margin-bottom: 16px;
+  }
+  @media (max-width: 600px) {
+    .summary { grid-template-columns: repeat(2, 1fr); }
+  }
+  .stat {
+    background: var(--surface);
+    border: 0.5px solid var(--border);
+    border-radius: var(--radius);
+    padding: 12px 14px;
+  }
+  .stat .num { font-size: 22px; font-weight: 500; line-height: 1.2; }
+  .stat .lab { font-size: 12px; color: var(--text-muted); margin-top: 2px; }
+  .stat.match .num { color: var(--success); }
+  .stat.diff .num { color: var(--danger); }
+  .stat.miss .num { color: var(--warning); }
+  @media (prefers-color-scheme: dark) {
+    .stat.match .num { color: #c0dd97; }
+    .stat.diff .num { color: #f09595; }
+    .stat.miss .num { color: #fac775; }
+  }
+  .toolbar {
+    display: flex;
+    gap: 12px;
+    margin-bottom: 12px;
+    align-items: center;
+    flex-wrap: wrap;
+  }
+  .toolbar label {
+    font-size: 13px;
+    color: var(--text-muted);
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    cursor: pointer;
+  }
+  button {
+    background: var(--surface);
+    color: var(--text);
+    border: 0.5px solid var(--border-strong);
+    border-radius: var(--radius);
+    padding: 6px 12px;
+    font-size: 13px;
+    cursor: pointer;
+    font-family: inherit;
+  }
+  button:hover { background: var(--surface-2); }
+  button:active { transform: scale(0.98); }
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13px;
+    background: var(--surface);
+    border-radius: var(--radius);
+    overflow: hidden;
+    border: 0.5px solid var(--border);
+  }
+  th, td {
+    padding: 9px 12px;
+    border-bottom: 0.5px solid var(--border);
+    text-align: left;
+    vertical-align: top;
+    word-break: break-all;
+  }
+  tr:last-child td { border-bottom: none; }
+  th {
+    font-weight: 500;
+    font-size: 12px;
+    color: var(--text-muted);
+    background: var(--surface-2);
+  }
+  .num-cell { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .status {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: var(--radius);
+    font-size: 11px;
+    font-weight: 500;
+    white-space: nowrap;
+  }
+  .status.ok { background: var(--success-bg); color: var(--success); }
+  .status.ng { background: var(--danger-bg); color: var(--danger); }
+  .status.only1, .status.only2 { background: var(--warning-bg); color: var(--warning); }
+  .price-diff { color: var(--danger); font-weight: 500; }
+  @media (prefers-color-scheme: dark) {
+    .price-diff { color: #f09595; }
+  }
+  .empty {
+    text-align: center;
+    padding: 3rem 1rem;
+    color: var(--text-hint);
+    font-size: 13px;
+    background: var(--surface);
+    border: 0.5px solid var(--border);
+    border-radius: var(--radius);
+  }
+  .err {
+    background: var(--danger-bg);
+    color: var(--danger);
+    padding: 10px 14px;
+    border-radius: var(--radius);
+    font-size: 13px;
+    margin-bottom: 12px;
+  }
+  .note {
+    margin-top: 32px;
+    padding: 12px 16px;
+    background: var(--surface-2);
+    border-radius: var(--radius);
+    font-size: 12px;
+    color: var(--text-muted);
+    line-height: 1.7;
+  }
+  .note strong { color: var(--text); font-weight: 500; }
+  details summary {
+    cursor: pointer;
+    font-size: 13px;
+    color: var(--text-muted);
+    margin-bottom: 8px;
+  }
+  details summary:hover { color: var(--text); }
+  .col-sku { width: 22%; }
+  .col-name { width: 38%; }
+  .col-p { width: 13%; }
+  .col-st { width: 14%; }
+</style>
+</head>
+<body>
+<div class="container">
+  <h1>価格差分チェッカー</h1>
+  <p class="subtitle">価格表CSV と 商品マスターCSV をSKUコードで突合します。すべてブラウザ内で処理され、ファイルは外部に送信されません。</p>
+
+  <div class="drops">
+    <label class="drop" id="drop-a" for="file-a">
+      <span class="lbl">📄 価格表CSV</span>
+      <span class="hint">SKU名 / SKUコード / 販売価格（税込）</span>
+      <span class="fname" id="fname-a"></span>
+      <input type="file" id="file-a" accept=".csv,.txt">
+    </label>
+    <label class="drop" id="drop-b" for="file-b">
+      <span class="lbl">📄 商品マスターCSV</span>
+      <span class="hint">SKUコード / SKU表示名 / 売価</span>
+      <span class="fname" id="fname-b"></span>
+      <input type="file" id="file-b" accept=".csv,.txt">
+    </label>
+  </div>
+
+  <div id="err-box"></div>
+
+  <div class="summary" id="summary" style="display:none;">
+    <div class="stat"><div class="num" id="stat-total">—</div><div class="lab">突合SKU数</div></div>
+    <div class="stat match"><div class="num" id="stat-match">—</div><div class="lab">価格一致</div></div>
+    <div class="stat diff"><div class="num" id="stat-diff">—</div><div class="lab">価格相違</div></div>
+    <div class="stat miss"><div class="num" id="stat-miss">—</div><div class="lab">片側のみ</div></div>
+  </div>
+
+  <div class="toolbar" id="toolbar" style="display:none;">
+    <label><input type="checkbox" id="only-issues"> 不一致・欠落のみ表示</label>
+    <button id="copy-btn" style="margin-left: auto;">📋 結果をコピー (TSV)</button>
+    <button id="reset-btn">リセット</button>
+  </div>
+
+  <div id="result-area">
+    <div class="empty">2つのCSVをドロップまたは選択してください</div>
+  </div>
+
+  <details class="note" style="margin-top: 32px;">
+    <summary>使い方・仕様について</summary>
+    <div style="margin-top: 8px;">
+      <strong>文字コード</strong>：UTF-8 / UTF-8 BOM / Shift_JIS を自動判定します。<br>
+      <strong>列の認識</strong>：SKUコードをキーに、価格列は「販売価格」「売価」「価格」を含む列名を自動検出します。商品名は「SKU表示名」「SKU名」「商品名」を優先します。<br>
+      <strong>並び順</strong>：価格相違 → 片側のみ → 価格一致 の順で表示します。<br>
+      <strong>セキュリティ</strong>：このページはすべてブラウザ内で完結します。ファイルはサーバーやネットワークには一切送信されず、ページを閉じれば消えます。
+    </div>
+  </details>
+</div>
+
+<script>
+(function(){
+  const state = { a: null, b: null };
+
+  function setupDrop(zoneId, inputId, key) {
+    const zone = document.getElementById(zoneId);
+    const input = document.getElementById(inputId);
+    const fnameEl = document.getElementById('fname-' + zoneId.split('-')[1]);
+    ['dragenter','dragover'].forEach(e => zone.addEventListener(e, ev => { ev.preventDefault(); zone.classList.add('over'); }));
+    ['dragleave','drop'].forEach(e => zone.addEventListener(e, ev => { ev.preventDefault(); zone.classList.remove('over'); }));
+    zone.addEventListener('drop', ev => {
+      const f = ev.dataTransfer.files[0];
+      if (f) handleFile(f, key, fnameEl);
+    });
+    input.addEventListener('change', ev => {
+      const f = ev.target.files[0];
+      if (f) handleFile(f, key, fnameEl);
+    });
+  }
+
+  async function readSmart(file) {
+    const buf = await file.arrayBuffer();
+    const bytes = new Uint8Array(buf);
+    if (bytes[0] === 0xEF && bytes[1] === 0xBB && bytes[2] === 0xBF) {
+      return new TextDecoder('utf-8').decode(bytes.slice(3));
+    }
+    try {
+      return new TextDecoder('utf-8', { fatal: true }).decode(bytes);
+    } catch (e) {
+      return new TextDecoder('shift_jis').decode(bytes);
+    }
+  }
+
+  function parseCSV(text) {
+    const rows = [];
+    let row = [], cur = '', inQ = false;
+    for (let i = 0; i < text.length; i++) {
+      const c = text[i];
+      if (inQ) {
+        if (c === '"') {
+          if (text[i+1] === '"') { cur += '"'; i++; }
+          else inQ = false;
+        } else cur += c;
+      } else {
+        if (c === '"') inQ = true;
+        else if (c === ',') { row.push(cur); cur = ''; }
+        else if (c === '\n') { row.push(cur); rows.push(row); row = []; cur = ''; }
+        else if (c === '\r') { /* skip */ }
+        else cur += c;
+      }
+    }
+    if (cur.length > 0 || row.length > 0) { row.push(cur); rows.push(row); }
+    return rows.filter(r => r.length > 1 || (r.length === 1 && r[0].trim() !== ''));
+  }
+
+  function toRecords(rows) {
+    if (rows.length < 2) return [];
+    const header = rows[0].map(h => h.trim());
+    return rows.slice(1).map(r => {
+      const obj = {};
+      header.forEach((h, i) => obj[h] = (r[i] ?? '').trim());
+      return obj;
+    });
+  }
+
+  function detectColumns(records) {
+    if (records.length === 0) return null;
+    const keys = Object.keys(records[0]);
+    const findInclude = (cands) => {
+      for (const c of cands) {
+        const k = keys.find(k => k.includes(c));
+        if (k) return k;
+      }
+      return null;
+    };
+    const skuKey = findInclude(['SKUコード', 'SKU']);
+    const nameKey = findInclude(['SKU表示名', 'SKU名', '商品名', '名称']);
+    const priceKey = findInclude(['販売価格', '売価', '価格']);
+    return { skuKey, nameKey, priceKey };
+  }
+
+  function toInt(s) {
+    if (s === '' || s === null || s === undefined) return null;
+    const n = parseInt(String(s).replace(/[,¥\s]/g, ''), 10);
+    return isNaN(n) ? null : n;
+  }
+
+  function showErr(msg) {
+    document.getElementById('err-box').innerHTML = msg ? '<div class="err">' + escapeHtml(msg) + '</div>' : '';
+  }
+
+  function escapeHtml(s) {
+    return String(s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+  }
+
+  async function handleFile(file, key, fnameEl) {
+    showErr('');
+    try {
+      const text = await readSmart(file);
+      const rows = parseCSV(text);
+      const records = toRecords(rows);
+      const cols = detectColumns(records);
+      if (!cols || !cols.skuKey || !cols.priceKey) {
+        showErr(file.name + ': SKUコード列または価格列が見つかりません');
+        return;
+      }
+      state[key] = { records, cols, fileName: file.name };
+      fnameEl.textContent = file.name;
+      render();
+    } catch (e) {
+      showErr('読込エラー: ' + e.message);
+    }
+  }
+
+  function render() {
+    if (!state.a || !state.b) {
+      document.getElementById('summary').style.display = 'none';
+      document.getElementById('toolbar').style.display = 'none';
+      document.getElementById('result-area').innerHTML = '<div class="empty">2つのCSVをドロップまたは選択してください</div>';
+      return;
+    }
+
+    const aMap = new Map();
+    const bMap = new Map();
+    state.a.records.forEach(r => {
+      const sku = r[state.a.cols.skuKey];
+      if (sku) aMap.set(sku, { name: r[state.a.cols.nameKey] || '', price: toInt(r[state.a.cols.priceKey]) });
+    });
+    state.b.records.forEach(r => {
+      const sku = r[state.b.cols.skuKey];
+      if (sku) bMap.set(sku, { name: r[state.b.cols.nameKey] || '', price: toInt(r[state.b.cols.priceKey]) });
+    });
+
+    const allSkus = new Set([...aMap.keys(), ...bMap.keys()]);
+    const rows = [];
+    let match = 0, diff = 0, miss = 0;
+    for (const sku of allSkus) {
+      const a = aMap.get(sku);
+      const b = bMap.get(sku);
+      let status, statusLabel;
+      if (a && b) {
+        if (a.price === b.price) { status = 'ok'; statusLabel = '一致'; match++; }
+        else { status = 'ng'; statusLabel = '相違'; diff++; }
+      } else if (a && !b) { status = 'only1'; statusLabel = '価格表のみ'; miss++; }
+      else { status = 'only2'; statusLabel = '商品マスターのみ'; miss++; }
+      rows.push({ sku, a, b, status, statusLabel });
+    }
+
+    const order = { ng: 0, only1: 1, only2: 1, ok: 2 };
+    rows.sort((x, y) => (order[x.status] - order[y.status]) || x.sku.localeCompare(y.sku));
+
+    document.getElementById('summary').style.display = '';
+    document.getElementById('toolbar').style.display = '';
+    document.getElementById('stat-total').textContent = allSkus.size;
+    document.getElementById('stat-match').textContent = match;
+    document.getElementById('stat-diff').textContent = diff;
+    document.getElementById('stat-miss').textContent = miss;
+
+    const onlyIssues = document.getElementById('only-issues').checked;
+    const visible = onlyIssues ? rows.filter(r => r.status !== 'ok') : rows;
+
+    let html = '';
+    if (visible.length === 0) {
+      html = '<div class="empty">表示する項目がありません</div>';
+    } else {
+      html = '<table><colgroup><col class="col-sku"><col class="col-name"><col class="col-p"><col class="col-p"><col class="col-st"></colgroup>';
+      html += '<thead><tr><th>SKUコード</th><th>商品名</th><th class="num-cell">価格表</th><th class="num-cell">商品マスター</th><th>状態</th></tr></thead><tbody>';
+      for (const r of visible) {
+        const name = (r.a && r.a.name) || (r.b && r.b.name) || '';
+        const ap = r.a ? (r.a.price === null ? '—' : r.a.price.toLocaleString()) : '—';
+        const bp = r.b ? (r.b.price === null ? '—' : r.b.price.toLocaleString()) : '—';
+        const cls = r.status === 'ng' ? 'price-diff' : '';
+        html += '<tr>';
+        html += '<td>' + escapeHtml(r.sku) + '</td>';
+        html += '<td>' + escapeHtml(name) + '</td>';
+        html += '<td class="num-cell ' + cls + '">' + ap + '</td>';
+        html += '<td class="num-cell ' + cls + '">' + bp + '</td>';
+        html += '<td><span class="status ' + r.status + '">' + r.statusLabel + '</span></td>';
+        html += '</tr>';
+      }
+      html += '</tbody></table>';
+    }
+    document.getElementById('result-area').innerHTML = html;
+    window.__rows = rows;
+  }
+
+  setupDrop('drop-a', 'file-a', 'a');
+  setupDrop('drop-b', 'file-b', 'b');
+
+  document.getElementById('only-issues').addEventListener('change', render);
+
+  document.getElementById('copy-btn').addEventListener('click', () => {
+    const rows = window.__rows || [];
+    const lines = ['SKUコード\t商品名\t価格表\t商品マスター\t状態'];
+    for (const r of rows) {
+      const name = (r.a && r.a.name) || (r.b && r.b.name) || '';
+      const ap = r.a && r.a.price !== null ? r.a.price : '';
+      const bp = r.b && r.b.price !== null ? r.b.price : '';
+      lines.push([r.sku, name, ap, bp, r.statusLabel].join('\t'));
+    }
+    navigator.clipboard.writeText(lines.join('\n')).then(() => {
+      const btn = document.getElementById('copy-btn');
+      const old = btn.textContent;
+      btn.textContent = '✓ コピーしました';
+      setTimeout(() => btn.textContent = old, 1500);
+    });
+  });
+
+  document.getElementById('reset-btn').addEventListener('click', () => {
+    state.a = null;
+    state.b = null;
+    document.getElementById('fname-a').textContent = '';
+    document.getElementById('fname-b').textContent = '';
+    document.getElementById('file-a').value = '';
+    document.getElementById('file-b').value = '';
+    document.getElementById('only-issues').checked = false;
+    showErr('');
+    render();
+  });
+})();
+</script>
+</body>
+</html>
