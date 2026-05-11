@@ -22,3 +22,12 @@
 - ファイルは**ブラウザ内でのみ処理**され、サーバーやネットワークには送信されません
 - 外部依存なし（CDNも使っていません）
 - ページを閉じればすべて消えます
+
+# tools
+
+業務データの突合・整形ツール集。
+
+## ツール一覧
+
+- [価格差分チェッカー](https://g-product.github.io/tools/price-diff-checker.html) — 価格表CSVと商品マスターCSVの価格差分を確認
+- [tabファイルジェネレータ](https://g-product.github.io/tools/tab-generator.html) — 商品マスターCSVから新潟/山形別のtabファイルを生成
