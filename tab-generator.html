@@ -263,18 +263,18 @@
 <body>
 <div class="container">
   <h1>tabファイルジェネレータ</h1>
-  <p class="subtitle">商品マスターCSVをドロップすると、SKUコード・SKU表示名・派生コードのTAB区切りファイルを生成します。新潟（SKU先頭=1）と山形（SKU先頭=2）でドロップ先を分けてください。</p>
+  <p class="subtitle">商品マスターCSVをドロップすると、SKUコード・SKU表示名・派生コードのTAB区切りファイルを生成します。ドロップしたエリア（新潟 or 山形）で派生コードのプレフィックスが決まります。</p>
 
   <div class="drops">
     <label class="drop niigata" id="drop-n" for="file-n">
-      <span class="lbl">🟦 新潟（SKU先頭 = 1）</span>
-      <span class="hint">商品マスターCSV／出力: n_0000.tab</span>
+      <span class="lbl">🟦 新潟</span>
+      <span class="hint">商品マスターCSV／出力: n_0000.tab（プレフィックス=1）</span>
       <input type="file" id="file-n" accept=".csv,.txt" multiple>
       <div class="file-list" id="filelist-n"></div>
     </label>
     <label class="drop yamagata" id="drop-y" for="file-y">
-      <span class="lbl">🟩 山形（SKU先頭 = 2）</span>
-      <span class="hint">商品マスターCSV／出力: y_0000.tab</span>
+      <span class="lbl">🟩 山形</span>
+      <span class="hint">商品マスターCSV／出力: y_0000.tab（プレフィックス=2）</span>
       <input type="file" id="file-y" accept=".csv,.txt" multiple>
       <div class="file-list" id="filelist-y"></div>
     </label>
@@ -296,8 +296,8 @@
     <summary>使い方・仕様について</summary>
     <div style="margin-top: 8px;">
       <strong>入力</strong>：商品マスターCSV（usces書き出し形式）。複数ファイルを投入できます。<br>
-      <strong>分類</strong>：CSVに含まれるSKUコードの先頭1文字を見て、ドロップしたエリアと一致しない行は警告表示します（誤って逆のエリアに入れた場合の検出用）。<br>
-      <strong>派生コードの生成</strong>：SKUコード <code>1202-001-01</code> の場合、ハイフンを除いた先頭4桁 <code>1202</code> に、都道府県プレフィックス（新潟=1／山形=2）と末尾固定 <code>01</code> を組み合わせて <code>1120201</code> を生成します。<br>
+      <strong>分類</strong>：ドロップしたエリアで県が決まります（SKU先頭の数字は判定に使いません）。<br>
+      <strong>派生コードの生成</strong>：SKUコードのハイフンを除いた先頭4桁に、エリアのプレフィックス（新潟=1／山形=2）と末尾固定 <code>01</code> を組み合わせます。例：新潟エリアの <code>0046-004-01</code> → <code>1</code> + <code>0046</code> + <code>01</code> = <code>1004601</code>。<br>
       <strong>出力</strong>：TAB区切り3列（SKUコード／SKU表示名／派生コード）、UTF-8、CRLF改行、末尾改行なし。ファイル名は <code>n_0000.tab</code> / <code>y_0000.tab</code>（DLしてから手動でリネーム）。<br>
       <strong>セキュリティ</strong>：すべてブラウザ内で処理され、ファイルは外部に送信されません。
     </div>
@@ -446,28 +446,22 @@
     return prefix + head4 + '01';
   }
 
-  // 各サイドの行を集計（SKU+派生コードでユニーク化、表示順は登場順）
-  function buildRows(files, expectedPrefix) {
+  // 各サイドの行を集計（SKUでユニーク化、表示順は登場順）
+  function buildRows(files, prefix) {
     const seen = new Set();
     const rows = [];
-    const mismatches = []; // 想定と異なるプレフィックスのSKU
     for (const f of files) {
       for (const r of f.records) {
         const sku = r[f.cols.skuKey];
         if (!sku) continue;
         const name = (f.cols.nameKey && r[f.cols.nameKey]) || '';
-        if (sku.charAt(0) !== expectedPrefix) {
-          mismatches.push({ sku, name, fileName: f.fileName });
-          continue;
-        }
-        const key = sku;
-        if (seen.has(key)) continue;
-        seen.add(key);
-        const code = deriveCode(sku, expectedPrefix);
+        if (seen.has(sku)) continue;
+        seen.add(sku);
+        const code = deriveCode(sku, prefix);
         rows.push({ sku, name, code });
       }
     }
-    return { rows, mismatches };
+    return { rows };
   }
 
   function render() {
@@ -501,7 +495,7 @@
   }
 
   function renderSection(key, regionLabel, prefix, themeClass, fileName) {
-    const { rows, mismatches } = buildRows(state[key], prefix);
+    const { rows } = buildRows(state[key], prefix);
 
     let html = '<div class="preview-section ' + themeClass + '">';
     html += '<div class="preview-header">';
@@ -512,12 +506,6 @@
     html += '<button class="primary ' + themeClass + '" data-action="download" data-key="' + key + '">⬇️ ' + escapeHtml(fileName) + ' をDL</button>';
     html += '</div>';
     html += '</div>';
-
-    if (mismatches.length > 0) {
-      const samples = mismatches.slice(0, 3).map(m => m.sku).join(', ');
-      const more = mismatches.length > 3 ? ` ほか${mismatches.length - 3}件` : '';
-      html += '<div class="warn">⚠️ ' + regionLabel + '側にSKU先頭が「' + prefix + '」でない行が ' + mismatches.length + ' 件あります（例: ' + escapeHtml(samples) + more + '）。これらは出力に含まれません。逆のエリアに入れていないか確認してください。</div>';
-    }
 
     if (rows.length === 0) {
       html += '<div class="empty">出力対象の行がありません</div>';
