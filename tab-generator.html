@@ -190,6 +190,57 @@
   }
   .sku-cell { font-family: ui-monospace, "SF Mono", Consolas, monospace; }
   .code-cell { font-family: ui-monospace, "SF Mono", Consolas, monospace; font-variant-numeric: tabular-nums; }
+  .editable {
+    cursor: text;
+    border-radius: 3px;
+    padding: 2px 4px;
+    margin: -2px -4px;
+    transition: background 0.1s;
+  }
+  .editable:hover {
+    background: var(--surface-2);
+    outline: 1px dashed var(--border-strong);
+  }
+  .editable:focus {
+    background: var(--surface);
+    outline: 2px solid var(--niigata);
+    outline-offset: -1px;
+  }
+  .preview-section.yamagata .editable:focus { outline-color: var(--yamagata); }
+  .row-actions {
+    width: 32px;
+    text-align: center;
+  }
+  .row-delete {
+    cursor: pointer;
+    color: var(--text-hint);
+    border: none;
+    background: none;
+    padding: 2px 6px;
+    font-size: 14px;
+    line-height: 1;
+    border-radius: 4px;
+  }
+  .row-delete:hover { color: var(--danger); background: var(--danger-bg); }
+  tr.deleted td {
+    opacity: 0.35;
+    text-decoration: line-through;
+  }
+  tr.deleted .row-delete {
+    text-decoration: none;
+    color: var(--niigata);
+  }
+  .preview-section.yamagata tr.deleted .row-delete { color: var(--yamagata); }
+  .edit-badge {
+    display: inline-block;
+    margin-left: 6px;
+    padding: 1px 6px;
+    font-size: 10px;
+    background: var(--warning-bg);
+    color: var(--warning);
+    border-radius: 3px;
+    vertical-align: middle;
+  }
   button {
     background: var(--surface);
     color: var(--text);
@@ -298,6 +349,7 @@
       <strong>入力</strong>：商品マスターCSV（usces書き出し形式）。複数ファイルを投入できます。<br>
       <strong>分類</strong>：ドロップしたエリアで県が決まります（SKU先頭の数字は判定に使いません）。<br>
       <strong>派生コードの生成</strong>：SKUコードのハイフンを除いた先頭4桁に、エリアのプレフィックス（新潟=1／山形=2）と末尾固定 <code>01</code> を組み合わせます。例：新潟エリアの <code>0046-004-01</code> → <code>1</code> + <code>0046</code> + <code>01</code> = <code>1004601</code>。<br>
+      <strong>画面上の編集</strong>：プレビュー表のSKUコード・SKU表示名はクリックで直接編集できます（Enterで確定、Escでキャンセル）。各行の「×」ボタンで出力対象から除外できます（再クリックで復活）。編集内容は元のCSVファイルには影響せず、画面上の状態だけ書き換わります。「↺ 編集を破棄」で読込時の状態に戻せます。<br>
       <strong>出力</strong>：TAB区切り3列（SKUコード／SKU表示名／派生コード）、UTF-8、CRLF改行、末尾改行なし。ファイル名は <code>n_0000.tab</code> / <code>y_0000.tab</code>（DLしてから手動でリネーム）。<br>
       <strong>セキュリティ</strong>：すべてブラウザ内で処理され、ファイルは外部に送信されません。
     </div>
@@ -306,7 +358,7 @@
 
 <script>
 (function(){
-  const state = { n: [], y: [] };
+  const state = { n: [], y: [], n_edits: {}, y_edits: {} };
 
   function setupDrop(zoneId, inputId, key) {
     const zone = document.getElementById(zoneId);
@@ -447,18 +499,27 @@
   }
 
   // 各サイドの行を集計（SKUでユニーク化、表示順は登場順）
-  function buildRows(files, prefix) {
+  // 編集状態は state[key+'_edits'] に { rowId: {sku, name, deleted} } で保持
+  function buildRows(files, prefix, key) {
     const seen = new Set();
     const rows = [];
+    const edits = state[key + '_edits'] || {};
     for (const f of files) {
       for (const r of f.records) {
-        const sku = r[f.cols.skuKey];
-        if (!sku) continue;
-        const name = (f.cols.nameKey && r[f.cols.nameKey]) || '';
-        if (seen.has(sku)) continue;
-        seen.add(sku);
+        const origSku = r[f.cols.skuKey];
+        if (!origSku) continue;
+        const origName = (f.cols.nameKey && r[f.cols.nameKey]) || '';
+        if (seen.has(origSku)) continue;
+        seen.add(origSku);
+        const rowId = origSku; // 元のSKUをIDとして使う
+        const edit = edits[rowId] || {};
+        const sku = edit.sku !== undefined ? edit.sku : origSku;
+        const name = edit.name !== undefined ? edit.name : origName;
+        const deleted = !!edit.deleted;
+        const edited = (edit.sku !== undefined && edit.sku !== origSku) ||
+                       (edit.name !== undefined && edit.name !== origName);
         const code = deriveCode(sku, prefix);
-        rows.push({ sku, name, code });
+        rows.push({ rowId, sku, name, code, deleted, edited, origSku, origName });
       }
     }
     return { rows };
@@ -492,16 +553,66 @@
         copyTab(k, btn);
       });
     });
+    document.querySelectorAll('[data-action="revert"]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const k = btn.dataset.key;
+        if (confirm('画面上で行った編集をすべて破棄して、読み込み時の状態に戻します。よろしいですか？')) {
+          state[k + '_edits'] = {};
+          render();
+        }
+      });
+    });
+    // 行削除ボタン
+    document.querySelectorAll('.row-delete').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const k = btn.dataset.key;
+        const rowId = btn.dataset.row;
+        const edits = state[k + '_edits'];
+        if (!edits[rowId]) edits[rowId] = {};
+        edits[rowId].deleted = !edits[rowId].deleted;
+        render();
+      });
+    });
+    // セル編集（blurで確定）
+    document.querySelectorAll('.editable').forEach(cell => {
+      cell.addEventListener('blur', () => {
+        const k = cell.dataset.key;
+        const rowId = cell.dataset.row;
+        const field = cell.dataset.field;
+        const newVal = cell.textContent.trim();
+        const edits = state[k + '_edits'];
+        if (!edits[rowId]) edits[rowId] = {};
+        edits[rowId][field] = newVal;
+        render();
+      });
+      cell.addEventListener('keydown', (ev) => {
+        if (ev.key === 'Enter') {
+          ev.preventDefault();
+          cell.blur();
+        } else if (ev.key === 'Escape') {
+          ev.preventDefault();
+          cell.blur();
+          render(); // 元の値に戻す
+        }
+      });
+    });
   }
 
   function renderSection(key, regionLabel, prefix, themeClass, fileName) {
-    const { rows } = buildRows(state[key], prefix);
+    const { rows } = buildRows(state[key], prefix, key);
+    const activeRows = rows.filter(r => !r.deleted);
+    const editedCount = rows.filter(r => r.edited || r.deleted).length;
 
     let html = '<div class="preview-section ' + themeClass + '">';
     html += '<div class="preview-header">';
-    html += '<span class="title">' + regionLabel + '（' + escapeHtml(fileName) + '）</span>';
-    html += '<span class="count">' + rows.length + '件</span>';
+    html += '<span class="title">' + regionLabel + '（' + escapeHtml(fileName) + '）';
+    if (editedCount > 0) html += '<span class="edit-badge">画面上で' + editedCount + '件編集</span>';
+    html += '</span>';
+    html += '<span class="count">出力 ' + activeRows.length + '件 / 全 ' + rows.length + '件</span>';
     html += '<div class="actions">';
+    if (editedCount > 0) {
+      html += '<button data-action="revert" data-key="' + key + '" title="画面上の編集を取り消して読込時の状態に戻す">↺ 編集を破棄</button>';
+    }
     html += '<button data-action="copy" data-key="' + key + '">📋 TSVコピー</button>';
     html += '<button class="primary ' + themeClass + '" data-action="download" data-key="' + key + '">⬇️ ' + escapeHtml(fileName) + ' をDL</button>';
     html += '</div>';
@@ -510,11 +621,15 @@
     if (rows.length === 0) {
       html += '<div class="empty">出力対象の行がありません</div>';
     } else {
-      html += '<table><thead><tr><th>SKUコード</th><th>SKU表示名</th><th>派生コード</th></tr></thead><tbody>';
+      html += '<table><thead><tr><th class="row-actions"></th><th>SKUコード</th><th>SKU表示名</th><th>派生コード</th></tr></thead><tbody>';
       for (const r of rows) {
-        html += '<tr>';
-        html += '<td class="sku-cell">' + escapeHtml(r.sku) + '</td>';
-        html += '<td>' + escapeHtml(r.name) + '</td>';
+        const trClass = r.deleted ? 'deleted' : '';
+        const delTitle = r.deleted ? 'この行を復活させる' : 'この行を出力から外す';
+        const delIcon = r.deleted ? '↺' : '×';
+        html += '<tr class="' + trClass + '">';
+        html += '<td class="row-actions"><button class="row-delete" data-key="' + key + '" data-row="' + escapeHtml(r.rowId) + '" title="' + delTitle + '">' + delIcon + '</button></td>';
+        html += '<td><span class="sku-cell editable" contenteditable="true" data-key="' + key + '" data-row="' + escapeHtml(r.rowId) + '" data-field="sku">' + escapeHtml(r.sku) + '</span></td>';
+        html += '<td><span class="editable" contenteditable="true" data-key="' + key + '" data-row="' + escapeHtml(r.rowId) + '" data-field="name">' + escapeHtml(r.name) + '</span></td>';
         html += '<td class="code-cell">' + escapeHtml(r.code) + '</td>';
         html += '</tr>';
       }
@@ -526,9 +641,10 @@
 
   function buildTabContent(key) {
     const prefix = key === 'n' ? '1' : '2';
-    const { rows } = buildRows(state[key], prefix);
+    const { rows } = buildRows(state[key], prefix, key);
+    const activeRows = rows.filter(r => !r.deleted);
     // TAB区切り、CRLF、末尾改行なし
-    return rows.map(r => [r.sku, r.name, r.code].join('\t')).join('\r\n');
+    return activeRows.map(r => [r.sku, r.name, r.code].join('\t')).join('\r\n');
   }
 
   function downloadTab(key) {
@@ -562,6 +678,8 @@
   document.getElementById('reset-btn').addEventListener('click', () => {
     state.n = [];
     state.y = [];
+    state.n_edits = {};
+    state.y_edits = {};
     document.getElementById('file-n').value = '';
     document.getElementById('file-y').value = '';
     renderFileList('n');
