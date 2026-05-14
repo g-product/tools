@@ -231,6 +231,15 @@
     color: var(--niigata);
   }
   .preview-section.yamagata tr.deleted .row-delete { color: var(--yamagata); }
+  tr.separator td {
+    background: var(--surface-2);
+    font-size: 11px;
+    color: var(--text-muted);
+    padding: 4px 12px;
+    text-align: center;
+    font-weight: 500;
+    letter-spacing: 0.02em;
+  }
   .edit-badge {
     display: inline-block;
     margin-left: 6px;
@@ -603,6 +612,9 @@
     const activeRows = rows.filter(r => !r.deleted);
     const editedCount = rows.filter(r => r.edited || r.deleted).length;
 
+    // 表示順：アクティブ行（登場順）→ 削除済み行（登場順）
+    const displayRows = [...rows.filter(r => !r.deleted), ...rows.filter(r => r.deleted)];
+
     let html = '<div class="preview-section ' + themeClass + '">';
     html += '<div class="preview-header">';
     html += '<span class="title">' + regionLabel + '（' + escapeHtml(fileName) + '）';
@@ -622,10 +634,16 @@
       html += '<div class="empty">出力対象の行がありません</div>';
     } else {
       html += '<table><thead><tr><th class="row-actions"></th><th>SKUコード</th><th>SKU表示名</th><th>派生コード</th></tr></thead><tbody>';
-      for (const r of rows) {
+      let firstDeletedShown = false;
+      for (const r of displayRows) {
         const trClass = r.deleted ? 'deleted' : '';
         const delTitle = r.deleted ? 'この行を復活させる' : 'この行を出力から外す';
         const delIcon = r.deleted ? '↺' : '×';
+        // 削除済みセクションの境界に区切り行を入れる
+        if (r.deleted && !firstDeletedShown) {
+          html += '<tr class="separator"><td colspan="4">出力から除外した行（' + rows.filter(x => x.deleted).length + '件）</td></tr>';
+          firstDeletedShown = true;
+        }
         html += '<tr class="' + trClass + '">';
         html += '<td class="row-actions"><button class="row-delete" data-key="' + key + '" data-row="' + escapeHtml(r.rowId) + '" title="' + delTitle + '">' + delIcon + '</button></td>';
         html += '<td><span class="sku-cell editable" contenteditable="true" data-key="' + key + '" data-row="' + escapeHtml(r.rowId) + '" data-field="sku">' + escapeHtml(r.sku) + '</span></td>';
